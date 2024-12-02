@@ -28,16 +28,24 @@ const userSchema = new mongoose.Schema({
     location: {
         type: String,
         default: "India"
+    },
+    isVerified: {
+        type: Boolean,
+        default: false
+    },
+    verificationToken: {
+        type: String,
     }
 }, { timestamps: true });
 
 
 //middleware
 
-userSchema.pre('save', async function () {
-    if (!this.ismodified) { return; }
+userSchema.pre('save', async function (next) {
+    if (!this.isNew) { return next(); }   //!this.ismodified
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
+    next();
 
 });
 

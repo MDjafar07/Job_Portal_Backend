@@ -1,5 +1,6 @@
 import userModel from "../models/userModel.js";
 import countUser from "../models/countUser.js";
+import { sendVerificationEamil, welcomeEamil } from "../middelwares/emailMiddelware.js";
 
 
 
@@ -75,16 +76,19 @@ export const registerController = async (req, res, next) => {
             { new: true, upsert: true }  // Return the updated document and create if not exists
         );
 
+        const verificationToken = Math.floor(100000 + Math.random() * 900000).toString();
 
         // Create the new user with the incremented count
-        const user = await userModel.create({ name, email, password, count: userCount.count });
+        const user = await userModel.create({ name, email, password, count: userCount.count, verificationToken });
+        await sendVerificationEamil(user.email, verificationToken);
+
         const token = user.createJWT();
 
         res.status(201).send({
             success: true,
             message: 'User created successfully',
             user,
-            token
+            token,
         });
 
     } catch (error) {
@@ -121,9 +125,35 @@ export const loginController = async (req, res, next) => {
         });
 
     } catch (error) {
-
+        next(error);
     }
-}
+};
 
-
+//verify Email
+export const verifyEmail = async (req, res, next) => {
+    try {
+        const { code } = req.body;
+        const user = await userModel.findOne({
+            verificationToken: code
+        });
+        if (!user) {
+            next("Invalid or Expired code");
+        };
+        user.isVerified = true,
+            user.verificationToken = undefined,
+            await user.save();
+        await welcomeEamil(user.email, user.name);
+        return res.status(200).json({
+            success: true,
+            message: 'Email verified successfully.',
+            user: {
+                id: user._id,
+                email: user.email,
+                isVerified: user.isVerified,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
 
